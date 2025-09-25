@@ -262,9 +262,8 @@ class ManualCCTVStitcher:
             result[y_start:y_end, x_start:x_end] = frame2[:y_end-y_start, :x_end-x_start]
         
         # Show preview
-        cv2.imshow('Stitching Preview (Press any key to continue)', result)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        cv2.namedWindow('Stitching Preview', cv2.WINDOW_NORMAL)
+        cv2.imshow('Stitching Preview', result)
         
         return params
     
@@ -272,37 +271,49 @@ class ManualCCTVStitcher:
         """Manual calibration process"""
         print("=== MANUAL CALIBRATION ===")
         
-        # Step 1: Point selection
-        if not self.select_points_manually():
-            print("Point selection failed")
-            return False
-        
-        # Step 2: Preview
-        print("\nShowing stitching preview...")
-        params = self.preview_stitching()
-        if not params:
-            print("Preview failed")
-            return False
-        
-        # Step 3: Confirm
-        print("\nDoes the stitching look good?")
-        print("Press 'y' to accept, 'n' to reselect points")
-        key = cv2.waitKey(0) & 0xFF
-        
-        if key == ord('y'):
-            # Save calibration
-            self.homography = params['homography']
-            self.canvas_size = params['canvas_size']
-            self.offset = params['offset']
-            self.camera2_position = params['camera2_position']
-            self.is_calibrated = True
+        while True:
+            # Step 1: Point selection
+            if not self.select_points_manually():
+                print("Point selection aborted.")
+                return False
             
-            self.save_calibration()
-            print("Calibration saved successfully!")
-            return True
-        else:
-            print("Restarting calibration...")
-            return self.calibrate_manual()
+            # Step 2: Preview
+            print("\nShowing stitching preview...")
+            params = self.preview_stitching()
+            if not params:
+                print("Preview failed. Retrying point selection.")
+                continue
+            
+            # Step 3: Confirm
+            print("\nDoes the stitching look good?")
+            print("Press 'y' to accept, 'n' to reselect points, or 'q' to quit in the preview window.")
+            
+            while True:
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('y'):
+                    cv2.destroyWindow('Stitching Preview')
+                    # Save calibration
+                    self.homography = params['homography']
+                    self.canvas_size = params['canvas_size']
+                    self.offset = params['offset']
+                    self.camera2_position = params['camera2_position']
+                    self.is_calibrated = True
+                    
+                    self.save_calibration()
+                    print("Calibration saved successfully!")
+                    return True
+                elif key == ord('n'):
+                    cv2.destroyWindow('Stitching Preview')
+                    print("Restarting point selection...")
+                    break  # Breaks inner loop to restart outer loop
+                elif key == ord('q'):
+                    cv2.destroyWindow('Stitching Preview')
+                    print("Calibration aborted by user.")
+                    return False
+            
+            if key == ord('n'):
+                continue # Continues to the next iteration of the main while loop
+
     
     def save_calibration(self):
         """Save calibration data"""
@@ -438,8 +449,8 @@ class ManualCCTVStitcher:
 # Usage Example
 if __name__ == "__main__":
     stitcher = ManualCCTVStitcher(
-        camera1_source='http://10.39.128.141:4747/video',  # First IP camera
-        camera2_source='http://10.39.128.194:4747/video',  # Second IP camera
+        camera1_source='http://192.168.1.8:4747/video',  # First IP camera
+        camera2_source='http://192.168.1.26:4747/video',  # Second IP camera
         calibration_file='manual_calibration.json'
     )
     
